@@ -1,67 +1,73 @@
 [
-  {"name":"Cotton Kurta White Blue","price":999,"description":"Soft breathable cotton kurta for daily wear","category":"ethnic","colors":["white","blue","black"]},
-  {"name":"Cotton Kurta Green Pink","price":1099,"description":"Comfortable kurta for casual use","category":"ethnic","colors":["green","pink"]},
-  {"name":"Silk Saree Red Gold","price":4999,"description":"Premium silk saree for weddings","category":"ethnic","colors":["red","gold","maroon"]},
-  {"name":"Silk Saree Blue Silver","price":5200,"description":"Elegant saree for festivals","category":"ethnic","colors":["blue","silver"]},
-  {"name":"Denim Jacket Blue Black","price":1999,"description":"Stylish denim jacket","category":"western","colors":["blue","black"]},
-  {"name":"Denim Jacket Grey Black","price":2199,"description":"Trendy jacket for outings","category":"western","colors":["grey","black"]},
+  {"name":"Cotton Kurta","price":999,"description":"Soft breathable cotton kurta for daily wear","category":"ethnic","colors":["white","blue","black"]},
+  {"name":"Cotton Kurta","price":1099,"description":"Comfortable kurta for casual use","category":"ethnic","colors":["green","pink"]},
 
-  {"name":"Formal Shirt White Blue","price":899,"description":"Slim fit formal shirt","category":"formal","colors":["white","blue"]},
-  {"name":"Formal Shirt Grey Black","price":999,"description":"Office wear shirt","category":"formal","colors":["grey","black"]},
-  {"name":"Casual T-Shirt Black Red","price":499,"description":"Comfortable cotton t-shirt","category":"casual","colors":["black","red"]},
-  {"name":"Casual T-Shirt Blue Yellow","price":549,"description":"Soft casual t-shirt","category":"casual","colors":["blue","yellow"]},
+  {"name":"Silk Saree","price":4999,"description":"Premium silk saree for weddings","category":"ethnic","colors":["red","gold","maroon"]},
+  {"name":"Silk Saree","price":5200,"description":"Elegant saree for festivals","category":"ethnic","colors":["blue","silver"]},
 
-  {"name":"Men Jeans Blue Black","price":1499,"description":"Regular fit jeans","category":"western","colors":["blue","black"]},
-  {"name":"Men Jeans Grey Black","price":1599,"description":"Slim fit jeans","category":"western","colors":["grey","black"]},
-  {"name":"Women Dress Pink White","price":1999,"description":"Stylish party dress","category":"western","colors":["pink","white"]},
-  {"name":"Women Dress Yellow Green","price":1899,"description":"Elegant summer dress","category":"western","colors":["yellow","green"]},
+  {"name":"Denim Jacket","price":1999,"description":"Stylish denim jacket","category":"western","colors":["blue","black"]},
+  {"name":"Denim Jacket","price":2199,"description":"Trendy jacket for outings","category":"western","colors":["grey","black"]},
 
-  {"name":"Sports T-Shirt Blue Black","price":699,"description":"Breathable sportswear","category":"sports","colors":["blue","black"]},
-  {"name":"Track Pants Black Grey","price":899,"description":"Comfortable gym wear","category":"sports","colors":["black","grey"]},
-  {"name":"Hoodie Grey Black","price":1299,"description":"Warm hoodie for winters","category":"casual","colors":["grey","black"]},
-  {"name":"Hoodie Blue Red","price":1399,"description":"Stylish hoodie","category":"casual","colors":["blue","red"]},
+  {"name":"Formal Shirt","price":899,"description":"Slim fit formal shirt","category":"formal","colors":["white","blue"]},
+  {"name":"Formal Shirt","price":999,"description":"Office wear shirt","category":"formal","colors":["grey","black"]},
 
-  {"name":"Blazer Formal Black Grey","price":2999,"description":"Professional blazer","category":"formal","colors":["black","grey"]},
-  {"name":"Blazer Grey Blue","price":3199,"description":"Formal wear blazer","category":"formal","colors":["grey","blue"]},
+  {"name":"Casual T-Shirt","price":499,"description":"Comfortable cotton t-shirt","category":"casual","colors":["black","red"]},
+  {"name":"Casual T-Shirt","price":549,"description":"Soft casual t-shirt","category":"casual","colors":["blue","yellow"]},
 
-  {"name":"Kurti Green Pink","price":799,"description":"Lightweight kurti","category":"ethnic","colors":["green","pink"]},
-  {"name":"Kurti Red Yellow","price":899,"description":"Elegant kurti","category":"ethnic","colors":["red","yellow"]},
-  {"name":"Palazzo Pants White Black","price":699,"description":"Comfortable ethnic pants","category":"ethnic","colors":["white","black"]},
-  {"name":"Leggings Black Grey","price":499,"description":"Stretchable leggings","category":"ethnic","colors":["black","grey"]},
+  {"name":"Men Jeans","price":1499,"description":"Regular fit jeans","category":"western","colors":["blue","black"]},
+  {"name":"Men Jeans","price":1599,"description":"Slim fit jeans","category":"western","colors":["grey","black"]},
 
-  {"name":"Sweatshirt Blue Grey","price":999,"description":"Casual sweatshirt","category":"casual","colors":["blue","grey"]},
-  {"name":"Sweatshirt Red Black","price":1099,"description":"Warm sweatshirt","category":"casual","colors":["red","black"]},
+  {"name":"Women Dress","price":1999,"description":"Stylish party dress","category":"western","colors":["pink","white"]},
+  {"name":"Women Dress","price":1899,"description":"Elegant summer dress","category":"western","colors":["yellow","green"]},
 
-  {"name":"Winter Jacket Black Grey","price":2499,"description":"Heavy winter jacket","category":"winter","colors":["black","grey"]},
-  {"name":"Light Jacket Blue White","price":1799,"description":"Light jacket","category":"winter","colors":["blue","white"]},
+  {"name":"Sports T-Shirt","price":699,"description":"Breathable sportswear","category":"sports","colors":["blue","black"]},
+  {"name":"Track Pants","price":899,"description":"Comfortable gym wear","category":"sports","colors":["black","grey"]},
 
-  {"name":"Sports Shoes White Blue","price":1999,"description":"Comfortable running shoes","category":"sports","colors":["white","blue"]},
-  {"name":"Casual Shoes Brown Black","price":1499,"description":"Daily wear shoes","category":"casual","colors":["brown","black"]},
+  {"name":"Hoodie","price":1299,"description":"Warm hoodie for winters","category":"casual","colors":["grey","black"]},
+  {"name":"Hoodie","price":1399,"description":"Stylish hoodie","category":"casual","colors":["blue","red"]},
 
-  {"name":"Ethnic Dupatta Red Gold","price":599,"description":"Traditional dupatta","category":"ethnic","colors":["red","gold"]},
-  {"name":"Scarf Winter Grey Black","price":399,"description":"Warm scarf","category":"winter","colors":["grey","black"]},
+  {"name":"Blazer","price":2999,"description":"Professional blazer","category":"formal","colors":["black","grey"]},
+  {"name":"Blazer","price":3199,"description":"Formal wear blazer","category":"formal","colors":["grey","blue"]},
 
-  {"name":"Kids T-Shirt Yellow Blue","price":399,"description":"Soft kids wear","category":"kids","colors":["yellow","blue"]},
-  {"name":"Kids Shorts Green Black","price":499,"description":"Comfortable kids shorts","category":"kids","colors":["green","black"]},
+  {"name":"Kurti","price":799,"description":"Lightweight kurti","category":"ethnic","colors":["green","pink"]},
+  {"name":"Kurti","price":899,"description":"Elegant kurti","category":"ethnic","colors":["red","yellow"]},
 
-  {"name":"Gym Shorts Black Grey","price":699,"description":"Lightweight gym shorts","category":"sports","colors":["black","grey"]},
-  {"name":"Yoga Pants Blue Black","price":899,"description":"Stretchable yoga pants","category":"sports","colors":["blue","black"]},
+  {"name":"Palazzo Pants","price":699,"description":"Comfortable ethnic pants","category":"ethnic","colors":["white","black"]},
+  {"name":"Leggings","price":499,"description":"Stretchable leggings","category":"ethnic","colors":["black","grey"]},
 
-  {"name":"Party Dress Red Black","price":2499,"description":"Elegant party wear","category":"western","colors":["red","black"]},
-  {"name":"Party Dress Blue Silver","price":2699,"description":"Stylish party outfit","category":"western","colors":["blue","silver"]},
+  {"name":"Sweatshirt","price":999,"description":"Casual sweatshirt","category":"casual","colors":["blue","grey"]},
+  {"name":"Sweatshirt","price":1099,"description":"Warm sweatshirt","category":"casual","colors":["red","black"]},
 
-  {"name":"Formal Trousers Black Grey","price":1399,"description":"Office trousers","category":"formal","colors":["black","grey"]},
-  {"name":"Formal Trousers Blue Black","price":1499,"description":"Slim fit trousers","category":"formal","colors":["blue","black"]},
+  {"name":"Winter Jacket","price":2499,"description":"Heavy winter jacket","category":"winter","colors":["black","grey"]},
+  {"name":"Light Jacket","price":1799,"description":"Light jacket","category":"winter","colors":["blue","white"]},
 
-  {"name":"Casual Shorts Blue White","price":799,"description":"Comfortable summer shorts","category":"casual","colors":["blue","white"]},
-  {"name":"Casual Shorts Grey Black","price":899,"description":"Daily wear shorts","category":"casual","colors":["grey","black"]},
+  {"name":"Sports Shoes","price":1999,"description":"Comfortable running shoes","category":"sports","colors":["white","blue"]},
+  {"name":"Casual Shoes","price":1499,"description":"Daily wear shoes","category":"casual","colors":["brown","black"]},
 
-  {"name":"Winter Sweater Red Black","price":1199,"description":"Warm sweater","category":"winter","colors":["red","black"]},
-  {"name":"Winter Sweater Blue Grey","price":1299,"description":"Comfortable sweater","category":"winter","colors":["blue","grey"]},
+  {"name":"Ethnic Dupatta","price":599,"description":"Traditional dupatta","category":"ethnic","colors":["red","gold"]},
+  {"name":"Scarf Winter","price":399,"description":"Warm scarf","category":"winter","colors":["grey","black"]},
 
-  {"name":"Ethnic Lehenga Red Gold","price":5999,"description":"Bridal lehenga","category":"ethnic","colors":["red","gold"]},
-  {"name":"Ethnic Lehenga Pink Silver","price":5499,"description":"Festive lehenga","category":"ethnic","colors":["pink","silver"]},
+  {"name":"Kids T-Shirt","price":399,"description":"Soft kids wear","category":"kids","colors":["yellow","blue"]},
+  {"name":"Kids Shorts","price":499,"description":"Comfortable kids shorts","category":"kids","colors":["green","black"]},
 
-  {"name":"Office Shirt Blue White","price":999,"description":"Formal office shirt","category":"formal","colors":["blue","white"]},
-  {"name":"Office Shirt Black Grey","price":1099,"description":"Premium office wear","category":"formal","colors":["black","grey"]}
+  {"name":"Gym Shorts","price":699,"description":"Lightweight gym shorts","category":"sports","colors":["black","grey"]},
+  {"name":"Yoga Pants","price":899,"description":"Stretchable yoga pants","category":"sports","colors":["blue","black"]},
+
+  {"name":"Party Dress","price":2499,"description":"Elegant party wear","category":"western","colors":["red","black"]},
+  {"name":"Party Dress","price":2699,"description":"Stylish party outfit","category":"western","colors":["blue","silver"]},
+
+  {"name":"Formal Trousers","price":1399,"description":"Office trousers","category":"formal","colors":["black","grey"]},
+  {"name":"Formal Trousers","price":1499,"description":"Slim fit trousers","category":"formal","colors":["blue","black"]},
+
+  {"name":"Casual Shorts","price":799,"description":"Comfortable summer shorts","category":"casual","colors":["blue","white"]},
+  {"name":"Casual Shorts","price":899,"description":"Daily wear shorts","category":"casual","colors":["grey","black"]},
+
+  {"name":"Winter Sweater","price":1199,"description":"Warm sweater","category":"winter","colors":["red","black"]},
+  {"name":"Winter Sweater","price":1299,"description":"Comfortable sweater","category":"winter","colors":["blue","grey"]},
+
+  {"name":"Ethnic Lehenga","price":5999,"description":"Bridal lehenga","category":"ethnic","colors":["red","gold"]},
+  {"name":"Ethnic Lehenga","price":5499,"description":"Festive lehenga","category":"ethnic","colors":["pink","silver"]},
+
+  {"name":"Office Shirt","price":999,"description":"Formal office shirt","category":"formal","colors":["blue","white"]},
+  {"name":"Office Shirt","price":1099,"description":"Premium office wear","category":"formal","colors":["black","grey"]}
 ]

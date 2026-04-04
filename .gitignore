@@ -4,3 +4,4 @@ venv/
 .env
 main.py
 embeddings.npy
+qdrant_data

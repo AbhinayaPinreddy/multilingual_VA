@@ -1,9 +1,12 @@
 import asyncio
+import concurrent.futures
+import functools
 import math
+import audioop
 import os
 import requests
-import struct
 import tempfile
+import threading
 import wave
 
 import av
@@ -16,25 +19,65 @@ from translator import to_english, from_english
 from retriever import retrieve
 from llm import generate
 
-
-# LiveKit outgoing audio (must match WebRTC expectations; 48k mono is standard).
+# LiveKit outgoing audio (48 kHz mono).
 AGENT_PLAYBACK_SR = 48000
 AGENT_PLAYBACK_CH = 1
 
-# Filled in main() after publish — used to play TTS into the room.
 _agent_audio_source: rtc.AudioSource | None = None
 
+# Barge-in / supersession: increment to cancel stale LLM+TTS work.
+_pipeline_gen = 0
+# Playback only: increment to stop streaming frames to LiveKit.
+_play_gen = 0
+_agent_speaking = False
 
-#  Get token from backend
+# CPU-heavy: Whisper STT, sentence-transformers + Qdrant in retrieve, ffmpeg/av decode.
+_CPU_POOL = concurrent.futures.ThreadPoolExecutor(
+    max_workers=8,
+    thread_name_prefix="va_cpu",
+)
+# Network-bound: Groq, Google Translate — separate pool so they do not block CPU workers.
+_IO_POOL = concurrent.futures.ThreadPoolExecutor(
+    max_workers=6,
+    thread_name_prefix="va_io",
+)
+
+# faster_whisper / CTranslate2: one decode at a time on the shared model.
+_STT_LOCK = threading.Lock()
+
+
+async def _run_cpu(fn, *args, **kwargs):
+    loop = asyncio.get_running_loop()
+    if kwargs:
+        return await loop.run_in_executor(_CPU_POOL, functools.partial(fn, *args, **kwargs))
+    return await loop.run_in_executor(_CPU_POOL, functools.partial(fn, *args))
+
+
+async def _run_io(fn, *args, **kwargs):
+    loop = asyncio.get_running_loop()
+    if kwargs:
+        return await loop.run_in_executor(_IO_POOL, functools.partial(fn, *args, **kwargs))
+    return await loop.run_in_executor(_IO_POOL, functools.partial(fn, *args))
+
+
+def _transcribe_locked(audio_path: str):
+    with _STT_LOCK:
+        return transcribe(audio_path)
+
+
 def get_token():
     res = requests.get(
         config.TOKEN_SERVER_URL,
-        params={"identity": "agent1", "room": "voice-room"}
+        params={
+            "identity": config.AGENT_IDENTITY,
+            "room": config.LIVEKIT_ROOM,
+        },
+        timeout=30,
     )
+    res.raise_for_status()
     return res.json()["token"]
 
 
-#  Build RAG context
 def build_context(results):
     if not results:
         return "No products found."
@@ -46,15 +89,14 @@ def build_context(results):
 
 
 def _pcm16le_rms(pcm: bytes) -> float:
-    """RMS of int16 mono (or de-interleaved as mono chunk) PCM."""
+    # Use audioop (C-accelerated) to avoid Python-level per-sample work.
+    # This significantly reduces CPU and helps prevent LiveKit queue overflow.
     if len(pcm) < 2:
         return 0.0
-    n = len(pcm) // 2
-    samples = struct.unpack_from(f"<{n}h", pcm, 0)
-    if not samples:
+    try:
+        return float(audioop.rms(pcm, 2))
+    except Exception:
         return 0.0
-    acc = sum(s * s for s in samples)
-    return math.sqrt(acc / len(samples))
 
 
 def _chunk_duration_ms(pcm: bytes, sample_rate: int, channels: int) -> float:
@@ -65,7 +107,6 @@ def _chunk_duration_ms(pcm: bytes, sample_rate: int, channels: int) -> float:
 
 
 def mp3_to_pcm48_mono(path: str) -> bytes:
-    """Decode MP3 (edge-tts) to 48 kHz s16le mono for LiveKit AudioSource."""
     out = bytearray()
     with av.open(path) as container:
         stream = container.streams.audio[0]
@@ -82,37 +123,72 @@ def mp3_to_pcm48_mono(path: str) -> bytes:
     return bytes(out)
 
 
-async def play_mp3_to_livekit(source: rtc.AudioSource, mp3_path: str) -> None:
-    """Stream decoded TTS to the room as 10 ms PCM frames."""
-    pcm = await asyncio.to_thread(mp3_to_pcm48_mono, mp3_path)
+def _barge_in() -> None:
+    """User started speaking over the agent — stop TTS and invalidate in-flight reply."""
+    global _pipeline_gen, _play_gen
+    _pipeline_gen += 1
+    _play_gen += 1
+    src = _agent_audio_source
+    if src is not None:
+        src.clear_queue()
+    print(" Barge-in: stopped agent audio; listening for your turn.")
+
+
+def _begin_new_user_turn() -> int:
+    """Finalize a user speech segment: stop any playback and assign a new pipeline generation."""
+    global _pipeline_gen, _play_gen
+    # Bump play gen on every new utterance so TTS stops even if barge-in RMS gate missed (echo, quiet speech).
+    _play_gen += 1
+    src = _agent_audio_source
+    if src is not None:
+        src.clear_queue()
+    _pipeline_gen += 1
+    return _pipeline_gen
+
+
+async def play_mp3_to_livekit(source: rtc.AudioSource, mp3_path: str, play_snapshot: int) -> None:
+    global _agent_speaking
+    pcm = await _run_cpu(mp3_to_pcm48_mono, mp3_path)
     if not pcm:
         print(" No PCM decoded from TTS; skipping playback")
         return
+    if play_snapshot != _play_gen:
+        print(" Playback cancelled before start (barge-in)")
+        return
 
     source.clear_queue()
+    _agent_speaking = True
+    try:
+        # Use 20ms frames to reduce Python overhead and avoid queue overflow.
+        samples_per_ch = 960  # 20 ms @ 48 kHz
+        frame_bytes = samples_per_ch * AGENT_PLAYBACK_CH * 2
+        offset = 0
+        print(f" Playback started ({len(pcm)} bytes PCM)")
+        while offset < len(pcm):
+            if play_snapshot != _play_gen:
+                print(" Playback interrupted mid-stream (barge-in)")
+                return
+            chunk = pcm[offset : offset + frame_bytes]
+            if len(chunk) < frame_bytes:
+                chunk = chunk + b"\x00" * (frame_bytes - len(chunk))
+            frame = rtc.AudioFrame(
+                chunk,
+                AGENT_PLAYBACK_SR,
+                AGENT_PLAYBACK_CH,
+                samples_per_ch,
+            )
+            try:
+                await source.capture_frame(frame)
+            except Exception as e:
+                # If LiveKit drops/overflows, log it and stop this playback.
+                print(" capture_frame failed:", repr(e))
+                return
+            offset += frame_bytes
+            await asyncio.sleep(0.019)
+        print(" Playback finished")
+    finally:
+        _agent_speaking = False
 
-    samples_per_ch = 480  # 10 ms @ 48 kHz
-    frame_bytes = samples_per_ch * AGENT_PLAYBACK_CH * 2
-    offset = 0
-    while offset < len(pcm):
-        chunk = pcm[offset : offset + frame_bytes]
-        if len(chunk) < frame_bytes:
-            chunk = chunk + b"\x00" * (frame_bytes - len(chunk))
-        frame = rtc.AudioFrame(
-            chunk,
-            AGENT_PLAYBACK_SR,
-            AGENT_PLAYBACK_CH,
-            samples_per_ch,
-        )
-        # capture_frame is async in current livekit-python; must await (not to_thread).
-        await source.capture_frame(frame)
-        offset += frame_bytes
-        await asyncio.sleep(0.0095)
-
-
-# Whisper often hallucinates these on noise / near-silence; skip replying.
-# One utterance at a time so STT/LLM don't fight for CPU and replies stay ordered.
-_utterance_sem = asyncio.Semaphore(1)
 
 _JUNK_TRANSCRIPTS = frozenset(
     x.lower()
@@ -129,55 +205,92 @@ _JUNK_TRANSCRIPTS = frozenset(
 )
 
 
-async def _process_utterance(audio_path: str) -> None:
-    async with _utterance_sem:
-        mp3_path: str | None = None
+def _pipeline_stale(snap: int) -> bool:
+    return snap != _pipeline_gen
+
+
+async def _process_utterance(audio_path: str, pipeline_snap: int) -> None:
+    mp3_path: str | None = None
+    try:
+        if _pipeline_stale(pipeline_snap):
+            return
+
+        text, lang = await _run_cpu(_transcribe_locked, audio_path)
+
+        if _pipeline_stale(pipeline_snap):
+            return
+
+        t = (text or "").strip()
+        if not t:
+            return
+        if len(t) <= 4 and t.lower() in _JUNK_TRANSCRIPTS:
+            print("⏭ Skipping junk / noise transcript:", repr(t))
+            return
+
+        print(" User:", t, "| Lang:", lang)
+
+        if lang == "en":
+            query_en = t
+            results = await _run_cpu(retrieve, t)
+        else:
+            query_en, results = await asyncio.gather(
+                _run_io(to_english, t, lang),
+                _run_cpu(retrieve, t),
+            )
+
+        if _pipeline_stale(pipeline_snap):
+            return
+
+        context = build_context(results)
+        answer_en = await _run_io(generate, context, query_en)
+
+        if _pipeline_stale(pipeline_snap):
+            return
+
+        final = await _run_io(from_english, answer_en, lang)
+
+        if _pipeline_stale(pipeline_snap):
+            return
+
+        print(" Bot:", final)
+
+        mp3_path = await speak(final, lang)
+        print(" TTS file:", mp3_path)
+
+        if _pipeline_stale(pipeline_snap):
+            return
+
+        play_snap = _play_gen
+        src = _agent_audio_source
+        if src is not None:
+            await play_mp3_to_livekit(src, mp3_path, play_snap)
+            print(" Agent audio sent to the meeting")
+        else:
+            print(" No AudioSource; only saved file above")
+    except Exception as e:
+        print(" Utterance pipeline error:", repr(e))
+    finally:
         try:
-            text, lang = await asyncio.to_thread(transcribe, audio_path)
-
-            t = (text or "").strip()
-            if not t:
-                return
-            if len(t) <= 4 and t.lower() in _JUNK_TRANSCRIPTS:
-                print("⏭ Skipping junk / noise transcript:", repr(t))
-                return
-
-            print(" User:", t, "| Lang:", lang)
-
-            # RAG uses multilingual embeddings on the raw transcript; English query for LLM in parallel.
-            if lang == "en":
-                query_en = t
-                results = await asyncio.to_thread(retrieve, t)
-            else:
-                query_en, results = await asyncio.gather(
-                    asyncio.to_thread(to_english, t, lang),
-                    asyncio.to_thread(retrieve, t),
-                )
-            context = build_context(results)
-            answer_en = await asyncio.to_thread(generate, context, query_en)
-            final = await asyncio.to_thread(from_english, answer_en, lang)
-
-            print(" Bot:", final)
-
-            mp3_path = await speak(final, lang)
-            print(" TTS file:", mp3_path)
-
-            src = _agent_audio_source
-            if src is not None:
-                await play_mp3_to_livekit(src, mp3_path)
-                print(" Agent audio sent to the meeting")
-            else:
-                print(" No AudioSource; only saved file above")
-        finally:
+            os.unlink(audio_path)
+        except OSError:
+            pass
+        if mp3_path:
             try:
-                os.unlink(audio_path)
+                os.unlink(mp3_path)
             except OSError:
                 pass
-            if mp3_path:
-                try:
-                    os.unlink(mp3_path)
-                except OSError:
-                    pass
+
+
+def _safe_create_utterance_task(coro):
+    async def _runner():
+        try:
+            await coro
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(" Task error:", repr(e))
+
+    return asyncio.create_task(_runner())
 
 
 def _write_wav(path: str, pcm: bytes, sample_rate: int, channels: int) -> None:
@@ -188,7 +301,6 @@ def _write_wav(path: str, pcm: bytes, sample_rate: int, channels: int) -> None:
         wf.writeframes(pcm)
 
 
-#  Handle audio stream (silence-based endpointing — full sentence, not 1s slices)
 async def handle_audio(room, track):
     print(" Track received")
 
@@ -203,17 +315,22 @@ async def handle_audio(room, track):
     sample_rate = 16000
     channels = 1
 
-    # Endpointing: start on speech-like RMS, end after sustained silence.
-    speech_start_rms = 95.0
-    silence_rms = 62.0
+    # Slightly lower thresholds so quieter speech still triggers (helps “no output sometimes”).
+    speech_start_rms = 78.0
+    silence_rms = 55.0
     end_silence_ms = 520.0
     min_utterance_ms = 380.0
     max_utterance_ms = 18000.0
-    min_flush_rms = 72.0
+    min_flush_rms = 62.0
 
     speech_buf = bytearray()
     in_speech = False
     silence_ms = 0.0
+    # While the agent is speaking, the mic may pick up TTS (echo). Keep barge-in above echo,
+    # but low enough that a real interrupt stops playback quickly.
+    barge_rms = 155.0
+    barge_min_ms = 180.0
+    barge_ms = 0.0
 
     async for event in stream:
         frame = getattr(event, "frame", event)
@@ -237,6 +354,22 @@ async def handle_audio(room, track):
 
         if not in_speech:
             if rms >= speech_start_rms:
+                # Debug: speech start gate passed
+                # (kept minimal; useful when users report “no output sometimes”)
+                # print(f\" Speech start rms={rms:.1f}\")
+                if _agent_speaking:
+                    # Only barge-in if we see sustained loud speech-like energy.
+                    if rms >= barge_rms:
+                        barge_ms += dur_ms
+                    else:
+                        barge_ms = 0.0
+
+                    if barge_ms < barge_min_ms:
+                        continue
+
+                    _barge_in()
+
+                barge_ms = 0.0
                 in_speech = True
                 speech_buf.clear()
                 speech_buf += chunk
@@ -268,21 +401,40 @@ async def handle_audio(room, track):
         if overall_rms < min_flush_rms:
             continue
 
+        pipeline_snap = _begin_new_user_turn()
+
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             wav_path = f.name
         _write_wav(wav_path, pcm, sample_rate, channels)
-        asyncio.create_task(_process_utterance(wav_path))
+        _safe_create_utterance_task(_process_utterance(wav_path, pipeline_snap))
 
 
-#  Main function
-async def main():
+async def _run_session(room: rtc.Room) -> None:
     global _agent_audio_source
 
-    room = rtc.Room()
+    disconnect_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def on_disconnected(reason):
+        print(" LiveKit disconnected:", reason)
+        loop.call_soon_threadsafe(disconnect_event.set)
+
+    def on_reconnecting():
+        print(" LiveKit reconnecting...")
+
+    def on_reconnected():
+        print(" LiveKit reconnected")
+
+    room.on("disconnected", on_disconnected)
+    room.on("reconnecting", on_reconnecting)
+    room.on("reconnected", on_reconnected)
 
     token = get_token()
-
-    await room.connect(config.LIVEKIT_URL, token)
+    await room.connect(
+        config.LIVEKIT_URL,
+        token,
+        rtc.RoomOptions(auto_subscribe=True),
+    )
 
     _agent_audio_source = rtc.AudioSource(AGENT_PLAYBACK_SR, AGENT_PLAYBACK_CH)
     agent_track = rtc.LocalAudioTrack.create_audio_track("agent-voice", _agent_audio_source)
@@ -293,7 +445,7 @@ async def main():
 
     @room.on("track_subscribed")
     def on_track(track, publication, participant):
-        if participant.identity == room.local_participant.identity:
+        if str(participant.identity) == str(room.local_participant.identity):
             return
         print(" Track subscribed")
 
@@ -302,9 +454,24 @@ async def main():
         else:
             print("⏭ Skipping non-audio track")
 
-    await asyncio.Future()
+    await disconnect_event.wait()
 
 
-# Run
+async def main():
+    while True:
+        room = rtc.Room()
+        try:
+            await _run_session(room)
+        except Exception as e:
+            print(" Session error:", repr(e))
+        finally:
+            try:
+                await room.disconnect()
+            except Exception:
+                pass
+        print(f" Reconnecting in {config.LIVEKIT_RECONNECT_DELAY}s...")
+        await asyncio.sleep(config.LIVEKIT_RECONNECT_DELAY)
+
+
 if __name__ == "__main__":
     asyncio.run(main())

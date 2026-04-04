@@ -1,35 +1,62 @@
-import json
-import numpy as np
+import os
 import re
+
+from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 
 import config
 
-with open("products.json") as f:
-    products = json.load(f)
-
-model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-product_vectors = np.load("embeddings.npy")
+_model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+_client: QdrantClient | None = None
 
 
-def extract_price(query):
+def _get_client() -> QdrantClient:
+    global _client
+    if _client is None:
+        os.makedirs(config.QDRANT_PATH, exist_ok=True)
+        _client = QdrantClient(path=config.QDRANT_PATH)
+    return _client
+
+
+def extract_price(query: str):
     nums = re.findall(r"\d+", query)
     return int(nums[0]) if nums else None
 
 
-def retrieve(query):
-    """Multilingual query text is fine — same embedder as products. Top-K kept small for LLM latency."""
-    top_k = min(config.RAG_TOP_K, len(products))
-    pool = min(max(12, top_k * 4), len(products))
+def _payload_to_product(p: dict) -> dict:
+    return {
+        "name": p["name"],
+        "price": p["price"],
+        "description": p["description"],
+        "category": p["category"],
+        "colors": p["colors"],
+    }
 
-    query_vec = model.encode([query], show_progress_bar=False)
-    scores = cosine_similarity(query_vec, product_vectors)[0]
 
-    top_idx = np.argpartition(scores, -pool)[-pool:]
-    top_idx = top_idx[np.argsort(scores[top_idx])[::-1]]
+def retrieve(query: str):
+    """Multilingual query; cosine search in Qdrant, then optional price filter."""
+    client = _get_client()
+    if not client.collection_exists(config.QDRANT_COLLECTION):
+        print(
+            "WARN: Qdrant collection missing — run `python embedder.py` once. "
+            "Returning empty RAG context."
+        )
+        return []
 
-    results = [products[i] for i in top_idx]
+    top_k = min(config.RAG_TOP_K, 64)
+    pool = min(max(12, top_k * 4), 64)
+
+    qv = _model.encode([query], show_progress_bar=False)[0]
+
+    hits = client.search(
+        collection_name=config.QDRANT_COLLECTION,
+        query_vector=qv,
+        limit=pool,
+        with_payload=True,
+    )
+
+    ranked = sorted(hits, key=lambda h: h.score or 0.0, reverse=True)
+    results = [_payload_to_product(h.payload) for h in ranked if h.payload]
 
     max_price = extract_price(query)
     if max_price:

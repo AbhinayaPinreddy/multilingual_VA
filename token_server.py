@@ -10,10 +10,11 @@ app = FastAPI()
 
 API_KEY = os.getenv("LIVEKIT_API_KEY")
 API_SECRET = os.getenv("LIVEKIT_API_SECRET")
+DEFAULT_ROOM = os.getenv("LIVEKIT_ROOM", "voice-room")
 
 
 @app.get("/get-token")
-def get_token(identity: str = "user", room: str = "voice-room"):
+def get_token(identity: str = "user", room: str = DEFAULT_ROOM):
     token = (
         api.AccessToken(API_KEY, API_SECRET)
         .with_identity(identity)

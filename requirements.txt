@@ -20,9 +20,14 @@ edge-tts==7.2.7
 
 # --- RAG / embeddings ---
 numpy==2.4.3
+qdrant-client==1.12.1
+# Pin gRPC so pip does not backtrack to grpcio-tools 1.58.x (sdist; build fails with pkg_resources).
+# grpcio-tools requires protobuf<7 — do not pin protobuf 7.x below.
+grpcio==1.80.0
+grpcio-tools==1.80.0
 sentence-transformers==5.3.0
-scikit-learn==1.8.0
 scipy==1.17.1
+langdetect==1.0.9
 torch==2.10.0
 transformers==5.3.0
 tokenizers==0.22.2
@@ -73,7 +78,7 @@ multidict==6.7.1
 networkx==3.6.1
 packaging==26.0
 propcache==0.4.1
-protobuf==7.34.0
+protobuf>=6.31.1,<7.0.0
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
