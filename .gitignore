@@ -5,3 +5,5 @@ venv/
 main.py
 embeddings.npy
 qdrant_data
+.venv/
+.python-version
