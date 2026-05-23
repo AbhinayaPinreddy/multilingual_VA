@@ -176,4 +176,9 @@ pip install -r requirements.txt
 - **`main.py`**: Legacy demo that imports `listen` from `stt`; the maintained entry point for voice in meetings is **`livekit_agent.py`**.
 
 ---
+## Collaboration
+
+This project was created in collaboration with [Superteams.ai](https://superteams.ai).
+
+The collaboration involved contributing technical content, sharing insights, and building projects/blogs focused on learning, innovation, and community engagement in the tech ecosystem.
 
